@@ -1,6 +1,6 @@
 module valleyvista-backend
 
-go 1.27
+go 1.23
 
 require (
 	github.com/labstack/echo/v5 v5.0.0-20230722203903-ec5b858dab61
