@@ -27,10 +27,14 @@ func main() {
 		return nil
 	})
 
-	// ===== Ensure collections & fields =====
-	if err := ensureCollections(app); err != nil {
-		log.Fatalf("Failed to ensure collections: %v", err)
-	}
+	// ===== Ensure collections after bootstrap =====
+	app.OnBeforeServe().Add(func(e *core.ServeEvent) error {
+		if err := ensureCollections(app); err != nil {
+			log.Printf("Error ensuring collections: %v", err)
+			return err
+		}
+		return nil
+	})
 
 	// ===== Start the app =====
 	if err := app.Start(); err != nil {
@@ -39,8 +43,13 @@ func main() {
 }
 
 func ensureCollections(app *pocketbase.PocketBase) error {
+	dao := app.Dao()
+	if dao == nil {
+		return nil // skip if dao not initialized (shouldn't happen now)
+	}
+
 	// 1. Modify users collection to add isAdmin flag
-	usersCollection, err := app.Dao().FindCollectionByNameOrId("users")
+	usersCollection, err := dao.FindCollectionByNameOrId("users")
 	if err != nil {
 		return err
 	}
@@ -58,13 +67,13 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 			Required: false,
 			Options:  &schema.BoolOptions{},
 		})
-		if err := app.Dao().SaveCollection(usersCollection); err != nil {
+		if err := dao.SaveCollection(usersCollection); err != nil {
 			return err
 		}
 	}
 
 	// 2. Create "properties" collection
-	if _, err := app.Dao().FindCollectionByNameOrId("properties"); err != nil {
+	if _, err := dao.FindCollectionByNameOrId("properties"); err != nil {
 		collection := &models.Collection{
 			Name:       "properties",
 			Type:       models.CollectionTypeBase,
@@ -110,13 +119,13 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 		for _, f := range fields {
 			collection.Schema.AddField(f)
 		}
-		if err := app.Dao().SaveCollection(collection); err != nil {
+		if err := dao.SaveCollection(collection); err != nil {
 			return err
 		}
 	}
 
 	// 3. Create "contact_requests" collection
-	if _, err := app.Dao().FindCollectionByNameOrId("contact_requests"); err != nil {
+	if _, err := dao.FindCollectionByNameOrId("contact_requests"); err != nil {
 		collection := &models.Collection{
 			Name:       "contact_requests",
 			Type:       models.CollectionTypeBase,
@@ -140,7 +149,7 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 			collection.Schema.AddField(f)
 		}
 		// Set relation to properties collection
-		propCollection, _ := app.Dao().FindCollectionByNameOrId("properties")
+		propCollection, _ := dao.FindCollectionByNameOrId("properties")
 		if propCollection != nil {
 			for _, f := range collection.Schema.Fields() {
 				if f.Name == "property" {
@@ -148,13 +157,13 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 				}
 			}
 		}
-		if err := app.Dao().SaveCollection(collection); err != nil {
+		if err := dao.SaveCollection(collection); err != nil {
 			return err
 		}
 	}
 
 	// 4. Create "property_requests" collection (scouting)
-	if _, err := app.Dao().FindCollectionByNameOrId("property_requests"); err != nil {
+	if _, err := dao.FindCollectionByNameOrId("property_requests"); err != nil {
 		collection := &models.Collection{
 			Name:       "property_requests",
 			Type:       models.CollectionTypeBase,
@@ -175,7 +184,7 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 			collection.Schema.AddField(f)
 		}
 		// Set user relation
-		usersColl, _ := app.Dao().FindCollectionByNameOrId("users")
+		usersColl, _ := dao.FindCollectionByNameOrId("users")
 		if usersColl != nil {
 			for _, f := range collection.Schema.Fields() {
 				if f.Name == "user" {
@@ -183,13 +192,13 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 				}
 			}
 		}
-		if err := app.Dao().SaveCollection(collection); err != nil {
+		if err := dao.SaveCollection(collection); err != nil {
 			return err
 		}
 	}
 
 	// 5. Create "owner_enquiries" collection
-	if _, err := app.Dao().FindCollectionByNameOrId("owner_enquiries"); err != nil {
+	if _, err := dao.FindCollectionByNameOrId("owner_enquiries"); err != nil {
 		collection := &models.Collection{
 			Name:       "owner_enquiries",
 			Type:       models.CollectionTypeBase,
@@ -213,13 +222,13 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 		for _, f := range fields {
 			collection.Schema.AddField(f)
 		}
-		if err := app.Dao().SaveCollection(collection); err != nil {
+		if err := dao.SaveCollection(collection); err != nil {
 			return err
 		}
 	}
 
 	// 6. Create "professionals" collection
-	if _, err := app.Dao().FindCollectionByNameOrId("professionals"); err != nil {
+	if _, err := dao.FindCollectionByNameOrId("professionals"); err != nil {
 		collection := &models.Collection{
 			Name:       "professionals",
 			Type:       models.CollectionTypeBase,
@@ -248,13 +257,13 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 		for _, f := range fields {
 			collection.Schema.AddField(f)
 		}
-		if err := app.Dao().SaveCollection(collection); err != nil {
+		if err := dao.SaveCollection(collection); err != nil {
 			return err
 		}
 	}
 
 	// 7. Create "favorites" collection
-	if _, err := app.Dao().FindCollectionByNameOrId("favorites"); err != nil {
+	if _, err := dao.FindCollectionByNameOrId("favorites"); err != nil {
 		collection := &models.Collection{
 			Name:       "favorites",
 			Type:       models.CollectionTypeBase,
@@ -278,8 +287,8 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 			collection.Schema.AddField(f)
 		}
 		// Set relation IDs
-		usersColl, _ := app.Dao().FindCollectionByNameOrId("users")
-		propColl, _ := app.Dao().FindCollectionByNameOrId("properties")
+		usersColl, _ := dao.FindCollectionByNameOrId("users")
+		propColl, _ := dao.FindCollectionByNameOrId("properties")
 		if usersColl != nil && propColl != nil {
 			for _, f := range collection.Schema.Fields() {
 				if f.Name == "user" {
@@ -290,11 +299,11 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 				}
 			}
 		}
-		// Add unique index (as JsonArray[string])
+		// Add unique index
 		collection.Indexes = types.JsonArray[string]{
 			"CREATE UNIQUE INDEX idx_favorites_user_property ON favorites (user, property)",
 		}
-		if err := app.Dao().SaveCollection(collection); err != nil {
+		if err := dao.SaveCollection(collection); err != nil {
 			return err
 		}
 	}
@@ -303,22 +312,22 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 	adminEmail := os.Getenv("ADMIN_EMAIL")
 	adminPassword := os.Getenv("ADMIN_PASSWORD")
 	if adminEmail != "" && adminPassword != "" {
-		user, err := app.Dao().FindAuthRecordByEmail("users", adminEmail)
+		user, err := dao.FindAuthRecordByEmail("users", adminEmail)
 		if err != nil {
 			// create user
-			collection, _ := app.Dao().FindCollectionByNameOrId("users")
+			collection, _ := dao.FindCollectionByNameOrId("users")
 			newUser := models.NewRecord(collection)
 			newUser.Set("email", adminEmail)
 			newUser.Set("password", adminPassword)
 			newUser.Set("passwordConfirm", adminPassword)
 			newUser.Set("isAdmin", true)
-			if err := app.Dao().SaveRecord(newUser); err != nil {
+			if err := dao.SaveRecord(newUser); err != nil {
 				log.Printf("Warning: could not create admin user: %v", err)
 			}
 		} else {
 			if user.GetBool("isAdmin") != true {
 				user.Set("isAdmin", true)
-				if err := app.Dao().SaveRecord(user); err != nil {
+				if err := dao.SaveRecord(user); err != nil {
 					log.Printf("Warning: could not update admin user: %v", err)
 				}
 			}
