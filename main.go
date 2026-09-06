@@ -319,6 +319,7 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 			collection, _ := dao.FindCollectionByNameOrId("users")
 			newUser := models.NewRecord(collection)
 			newUser.Set("email", adminEmail)
+			newUser.Set("username", adminEmail)
 			newUser.Set("password", adminPassword)
 			newUser.Set("passwordConfirm", adminPassword)
 			newUser.Set("isAdmin", true)
