@@ -27,12 +27,13 @@ func main() {
 		return nil
 	})
 
-	// ===== Ensure collections after bootstrap =====
+	// ===== Ensure collections AFTER server starts (non-blocking) =====
 	app.OnBeforeServe().Add(func(e *core.ServeEvent) error {
-		if err := ensureCollections(app); err != nil {
-			log.Printf("Error ensuring collections: %v", err)
-			return err
-		}
+		go func() {
+			if err := ensureCollections(app); err != nil {
+				log.Printf("Error ensuring collections: %v", err)
+			}
+		}()
 		return nil
 	})
 
@@ -45,7 +46,7 @@ func main() {
 func ensureCollections(app *pocketbase.PocketBase) error {
 	dao := app.Dao()
 	if dao == nil {
-		return nil // skip if dao not initialized (shouldn't happen now)
+		return nil
 	}
 
 	// 1. Modify users collection to add isAdmin flag

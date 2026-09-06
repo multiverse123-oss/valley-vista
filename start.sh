@@ -1,14 +1,14 @@
 #!/bin/sh
 set -x
 
-# Aggressive garbage collection to stay under Render's memory limit
-export GOMEMLIMIT=256MiB
-export GOGC=50
+# Ultra-low memory settings to fit 512MB
+export GOMEMLIMIT=128MiB
+export GOGC=20
 
 # Start Litestream replication in background
 litestream replicate -config /app/litestream.yml > /app/litestream.log 2>&1 &
 
-# Wait briefly to allow Litestream to attach
+# Wait briefly
 sleep 2
 
 # Start PocketBase on Render's provided port
