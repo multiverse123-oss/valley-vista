@@ -2,10 +2,10 @@ dbs:
   - path: /app/pb_data/data.db
     replicas:
       - type: s3
-        endpoint: s3.us-west-4.idrivee2.com
-        bucket: vally-vista
+        endpoint: ${IDRIVE_ENDPOINT}
+        bucket: ${IDRIVE_BUCKET}
         path: pocketbase-data
-        access-key-id: ${LITESTREAM_ACCESS_KEY_ID}
-        secret-access-key: ${LITESTREAM_SECRET_ACCESS_KEY}
-        region: us-west-4
+        access-key-id: ${IDRIVE_ACCESS_KEY_ID}
+        secret-access-key: ${IDRIVE_SECRET_ACCESS_KEY}
+        region: ${IDRIVE_REGION}
         force-path-style: true
