@@ -309,7 +309,28 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 		}
 	}
 
-	// (Optional) Create an admin user if env vars set
+	// (Optional) Create a PocketBase superuser if env vars set
+	pbAdminEmail := os.Getenv("PB_ADMIN_EMAIL")
+	pbAdminPassword := os.Getenv("PB_ADMIN_PASSWORD")
+	if pbAdminEmail != "" && pbAdminPassword != "" {
+		// Check if superuser exists
+		_, err := dao.FindAuthRecordByEmail("_admins", pbAdminEmail)
+		if err != nil {
+			// Create superuser
+			adminCollection, _ := dao.FindCollectionByNameOrId("_admins")
+			newAdmin := models.NewRecord(adminCollection)
+			newAdmin.Set("email", pbAdminEmail)
+			newAdmin.Set("password", pbAdminPassword)
+			newAdmin.Set("passwordConfirm", pbAdminPassword)
+			if err := dao.SaveRecord(newAdmin); err != nil {
+				log.Printf("Warning: could not create PocketBase superuser: %v", err)
+			} else {
+				log.Printf("PocketBase superuser created: %s", pbAdminEmail)
+			}
+		}
+	}
+
+	// (Optional) Create a regular admin user if env vars set
 	adminEmail := os.Getenv("ADMIN_EMAIL")
 	adminPassword := os.Getenv("ADMIN_PASSWORD")
 	if adminEmail != "" && adminPassword != "" {
