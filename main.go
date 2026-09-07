@@ -17,7 +17,7 @@ import (
 func main() {
 	app := pocketbase.New()
 
-	// ===== CORS Middleware =====
+	// CORS
 	app.OnBeforeServe().Add(func(e *core.ServeEvent) error {
 		e.Router.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 			AllowOrigins: []string{"*"},
@@ -27,17 +27,15 @@ func main() {
 		return nil
 	})
 
-	// ===== Ensure collections AFTER server starts (non-blocking) =====
+	// Ensure collections synchronously before serving
 	app.OnBeforeServe().Add(func(e *core.ServeEvent) error {
-		go func() {
-			if err := ensureCollections(app); err != nil {
-				log.Printf("Error ensuring collections: %v", err)
-			}
-		}()
+		if err := ensureCollections(app); err != nil {
+			log.Printf("Error ensuring collections: %v", err)
+			return err
+		}
 		return nil
 	})
 
-	// ===== Start the app =====
 	if err := app.Start(); err != nil {
 		log.Fatal(err)
 	}
@@ -49,7 +47,7 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 		return nil
 	}
 
-	// 1. Modify users collection to add isAdmin flag
+	// 1. Add isAdmin to users
 	usersCollection, err := dao.FindCollectionByNameOrId("users")
 	if err != nil {
 		return err
@@ -73,7 +71,7 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 		}
 	}
 
-	// 2. Create "properties" collection
+	// 2. properties
 	if _, err := dao.FindCollectionByNameOrId("properties"); err != nil {
 		collection := &models.Collection{
 			Name:       "properties",
@@ -89,33 +87,16 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 			{Name: "description", Type: schema.FieldTypeText, Required: false},
 			{Name: "address", Type: schema.FieldTypeText, Required: true},
 			{Name: "price", Type: schema.FieldTypeNumber, Required: true},
-			{Name: "type", Type: schema.FieldTypeSelect, Required: true, Options: &schema.SelectOptions{
-				MaxSelect: 1,
-				Values:    []string{"house", "warehouse", "apartment", "villa"},
-			}},
-			{Name: "listing_type", Type: schema.FieldTypeSelect, Required: true, Options: &schema.SelectOptions{
-				MaxSelect: 1,
-				Values:    []string{"sale", "rent"},
-			}},
-			{Name: "status", Type: schema.FieldTypeSelect, Required: true, Options: &schema.SelectOptions{
-				MaxSelect: 1,
-				Values:    []string{"available", "sold", "rented"},
-			}},
+			{Name: "type", Type: schema.FieldTypeSelect, Required: true, Options: &schema.SelectOptions{MaxSelect: 1, Values: []string{"house", "warehouse", "apartment", "villa"}}},
+			{Name: "listing_type", Type: schema.FieldTypeSelect, Required: true, Options: &schema.SelectOptions{MaxSelect: 1, Values: []string{"sale", "rent"}}},
+			{Name: "status", Type: schema.FieldTypeSelect, Required: true, Options: &schema.SelectOptions{MaxSelect: 1, Values: []string{"available", "sold", "rented"}}},
 			{Name: "bedrooms", Type: schema.FieldTypeNumber, Required: false},
 			{Name: "bathrooms", Type: schema.FieldTypeNumber, Required: false},
 			{Name: "size", Type: schema.FieldTypeNumber, Required: false},
 			{Name: "latitude", Type: schema.FieldTypeNumber, Required: false},
 			{Name: "longitude", Type: schema.FieldTypeNumber, Required: false},
-			{Name: "images", Type: schema.FieldTypeFile, Required: false, Options: &schema.FileOptions{
-				MaxSelect: 10,
-				MaxSize:   5242880,
-				MimeTypes: []string{"image/jpeg", "image/png", "image/webp", "image/gif"},
-			}},
-			{Name: "video", Type: schema.FieldTypeFile, Required: false, Options: &schema.FileOptions{
-				MaxSelect: 1,
-				MaxSize:   52428800,
-				MimeTypes: []string{"video/mp4", "video/webm", "video/quicktime"},
-			}},
+			{Name: "images", Type: schema.FieldTypeFile, Required: false, Options: &schema.FileOptions{MaxSelect: 10, MaxSize: 5242880, MimeTypes: []string{"image/jpeg", "image/png", "image/webp", "image/gif"}}},
+			{Name: "video", Type: schema.FieldTypeFile, Required: false, Options: &schema.FileOptions{MaxSelect: 1, MaxSize: 52428800, MimeTypes: []string{"video/mp4", "video/webm", "video/quicktime"}}},
 		}
 		for _, f := range fields {
 			collection.Schema.AddField(f)
@@ -125,7 +106,7 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 		}
 	}
 
-	// 3. Create "contact_requests" collection
+	// 3. contact_requests
 	if _, err := dao.FindCollectionByNameOrId("contact_requests"); err != nil {
 		collection := &models.Collection{
 			Name:       "contact_requests",
@@ -137,10 +118,7 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 			DeleteRule: types.Pointer("@request.auth.isAdmin = true"),
 		}
 		fields := []*schema.SchemaField{
-			{Name: "property", Type: schema.FieldTypeRelation, Required: true, Options: &schema.RelationOptions{
-				CollectionId: "",
-				MaxSelect:    types.Pointer(1),
-			}},
+			{Name: "property", Type: schema.FieldTypeRelation, Required: true, Options: &schema.RelationOptions{CollectionId: "", MaxSelect: types.Pointer(1)}},
 			{Name: "name", Type: schema.FieldTypeText, Required: true},
 			{Name: "email", Type: schema.FieldTypeEmail, Required: false},
 			{Name: "phone", Type: schema.FieldTypeText, Required: false},
@@ -149,7 +127,6 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 		for _, f := range fields {
 			collection.Schema.AddField(f)
 		}
-		// Set relation to properties collection
 		propCollection, _ := dao.FindCollectionByNameOrId("properties")
 		if propCollection != nil {
 			for _, f := range collection.Schema.Fields() {
@@ -163,7 +140,7 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 		}
 	}
 
-	// 4. Create "property_requests" collection (scouting)
+	// 4. property_requests
 	if _, err := dao.FindCollectionByNameOrId("property_requests"); err != nil {
 		collection := &models.Collection{
 			Name:       "property_requests",
@@ -175,16 +152,12 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 			DeleteRule: types.Pointer("@request.auth.isAdmin = true"),
 		}
 		fields := []*schema.SchemaField{
-			{Name: "user", Type: schema.FieldTypeRelation, Required: false, Options: &schema.RelationOptions{
-				CollectionId: "",
-				MaxSelect:    types.Pointer(1),
-			}},
+			{Name: "user", Type: schema.FieldTypeRelation, Required: false, Options: &schema.RelationOptions{CollectionId: "", MaxSelect: types.Pointer(1)}},
 			{Name: "description", Type: schema.FieldTypeText, Required: true},
 		}
 		for _, f := range fields {
 			collection.Schema.AddField(f)
 		}
-		// Set user relation
 		usersColl, _ := dao.FindCollectionByNameOrId("users")
 		if usersColl != nil {
 			for _, f := range collection.Schema.Fields() {
@@ -198,7 +171,7 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 		}
 	}
 
-	// 5. Create "owner_enquiries" collection
+	// 5. owner_enquiries
 	if _, err := dao.FindCollectionByNameOrId("owner_enquiries"); err != nil {
 		collection := &models.Collection{
 			Name:       "owner_enquiries",
@@ -214,10 +187,7 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 			{Name: "company_name", Type: schema.FieldTypeText, Required: false},
 			{Name: "phone", Type: schema.FieldTypeText, Required: true},
 			{Name: "property_address", Type: schema.FieldTypeText, Required: true},
-			{Name: "category", Type: schema.FieldTypeSelect, Required: true, Options: &schema.SelectOptions{
-				MaxSelect: 1,
-				Values:    []string{"general_enquiry", "inspection", "filming"},
-			}},
+			{Name: "category", Type: schema.FieldTypeSelect, Required: true, Options: &schema.SelectOptions{MaxSelect: 1, Values: []string{"general_enquiry", "inspection", "filming"}}},
 			{Name: "message", Type: schema.FieldTypeText, Required: true},
 		}
 		for _, f := range fields {
@@ -228,7 +198,7 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 		}
 	}
 
-	// 6. Create "professionals" collection
+	// 6. professionals
 	if _, err := dao.FindCollectionByNameOrId("professionals"); err != nil {
 		collection := &models.Collection{
 			Name:       "professionals",
@@ -244,16 +214,8 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 			{Name: "role", Type: schema.FieldTypeText, Required: true},
 			{Name: "company", Type: schema.FieldTypeText, Required: false},
 			{Name: "email", Type: schema.FieldTypeEmail, Required: false},
-			{Name: "avatar", Type: schema.FieldTypeFile, Required: false, Options: &schema.FileOptions{
-				MaxSelect: 1,
-				MaxSize:   2097152,
-				MimeTypes: []string{"image/jpeg", "image/png", "image/webp"},
-			}},
-			{Name: "logo", Type: schema.FieldTypeFile, Required: false, Options: &schema.FileOptions{
-				MaxSelect: 1,
-				MaxSize:   2097152,
-				MimeTypes: []string{"image/jpeg", "image/png", "image/webp"},
-			}},
+			{Name: "avatar", Type: schema.FieldTypeFile, Required: false, Options: &schema.FileOptions{MaxSelect: 1, MaxSize: 2097152, MimeTypes: []string{"image/jpeg", "image/png", "image/webp"}}},
+			{Name: "logo", Type: schema.FieldTypeFile, Required: false, Options: &schema.FileOptions{MaxSelect: 1, MaxSize: 2097152, MimeTypes: []string{"image/jpeg", "image/png", "image/webp"}}},
 		}
 		for _, f := range fields {
 			collection.Schema.AddField(f)
@@ -263,7 +225,7 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 		}
 	}
 
-	// 7. Create "favorites" collection
+	// 7. favorites
 	if _, err := dao.FindCollectionByNameOrId("favorites"); err != nil {
 		collection := &models.Collection{
 			Name:       "favorites",
@@ -275,48 +237,36 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 			DeleteRule: types.Pointer("@request.auth.id != '' && user = @request.auth.id"),
 		}
 		fields := []*schema.SchemaField{
-			{Name: "user", Type: schema.FieldTypeRelation, Required: true, Options: &schema.RelationOptions{
-				CollectionId: "",
-				MaxSelect:    types.Pointer(1),
-			}},
-			{Name: "property", Type: schema.FieldTypeRelation, Required: true, Options: &schema.RelationOptions{
-				CollectionId: "",
-				MaxSelect:    types.Pointer(1),
-			}},
+			{Name: "user", Type: schema.FieldTypeRelation, Required: true, Options: &schema.RelationOptions{CollectionId: "", MaxSelect: types.Pointer(1)}},
+			{Name: "property", Type: schema.FieldTypeRelation, Required: true, Options: &schema.RelationOptions{CollectionId: "", MaxSelect: types.Pointer(1)}},
 		}
 		for _, f := range fields {
 			collection.Schema.AddField(f)
 		}
-		// Set relation IDs
-		usersColl, _ := dao.FindCollectionByNameOrId("users")
-		propColl, _ := dao.FindCollectionByNameOrId("properties")
-		if usersColl != nil && propColl != nil {
+		usersColl2, _ := dao.FindCollectionByNameOrId("users")
+		propColl2, _ := dao.FindCollectionByNameOrId("properties")
+		if usersColl2 != nil && propColl2 != nil {
 			for _, f := range collection.Schema.Fields() {
 				if f.Name == "user" {
-					f.Options.(*schema.RelationOptions).CollectionId = usersColl.Id
+					f.Options.(*schema.RelationOptions).CollectionId = usersColl2.Id
 				}
 				if f.Name == "property" {
-					f.Options.(*schema.RelationOptions).CollectionId = propColl.Id
+					f.Options.(*schema.RelationOptions).CollectionId = propColl2.Id
 				}
 			}
 		}
-		// Add unique index
-		collection.Indexes = types.JsonArray[string]{
-			"CREATE UNIQUE INDEX idx_favorites_user_property ON favorites (user, property)",
-		}
+		collection.Indexes = types.JsonArray[string]{"CREATE UNIQUE INDEX idx_favorites_user_property ON favorites (user, property)"}
 		if err := dao.SaveCollection(collection); err != nil {
 			return err
 		}
 	}
 
-	// (Optional) Create a PocketBase superuser if env vars set
+	// Create PocketBase superuser if env vars set
 	pbAdminEmail := os.Getenv("PB_ADMIN_EMAIL")
 	pbAdminPassword := os.Getenv("PB_ADMIN_PASSWORD")
 	if pbAdminEmail != "" && pbAdminPassword != "" {
-		// Check if superuser exists
 		_, err := dao.FindAuthRecordByEmail("_admins", pbAdminEmail)
 		if err != nil {
-			// Create superuser
 			adminCollection, _ := dao.FindCollectionByNameOrId("_admins")
 			newAdmin := models.NewRecord(adminCollection)
 			newAdmin.Set("email", pbAdminEmail)
@@ -328,15 +278,16 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 				log.Printf("PocketBase superuser created: %s", pbAdminEmail)
 			}
 		}
+	} else {
+		log.Println("Warning: PB_ADMIN_EMAIL or PB_ADMIN_PASSWORD not set. Superuser will not be created automatically.")
 	}
 
-	// (Optional) Create a regular admin user if env vars set
+	// Create regular admin user if env vars set
 	adminEmail := os.Getenv("ADMIN_EMAIL")
 	adminPassword := os.Getenv("ADMIN_PASSWORD")
 	if adminEmail != "" && adminPassword != "" {
 		user, err := dao.FindAuthRecordByEmail("users", adminEmail)
 		if err != nil {
-			// create user
 			collection, _ := dao.FindCollectionByNameOrId("users")
 			newUser := models.NewRecord(collection)
 			newUser.Set("email", adminEmail)
@@ -346,13 +297,13 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 			newUser.Set("isAdmin", true)
 			if err := dao.SaveRecord(newUser); err != nil {
 				log.Printf("Warning: could not create admin user: %v", err)
+			} else {
+				log.Printf("Admin user created: %s", adminEmail)
 			}
 		} else {
 			if user.GetBool("isAdmin") != true {
 				user.Set("isAdmin", true)
-				if err := dao.SaveRecord(user); err != nil {
-					log.Printf("Warning: could not update admin user: %v", err)
-				}
+				dao.SaveRecord(user)
 			}
 		}
 	}
