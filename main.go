@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"log"
 	"net/http"
 	"os"
@@ -265,37 +266,48 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 	// Create PocketBase superuser if env vars set
 	pbAdminEmail := os.Getenv("PB_ADMIN_EMAIL")
 	pbAdminPassword := os.Getenv("PB_ADMIN_PASSWORD")
-	if pbAdminEmail != "" && pbAdminPassword != "" {
+	if pbAdminEmail == "" || pbAdminPassword == "" {
+		log.Println("Warning: PB_ADMIN_EMAIL or PB_ADMIN_PASSWORD not set. Superuser will not be created automatically.")
+	} else {
+		// Try to find existing superuser
 		_, err := dao.FindAuthRecordByEmail("_admins", pbAdminEmail)
 		if err != nil {
-			adminCollection, err := dao.FindCollectionByNameOrId("_admins")
-			if err != nil || adminCollection == nil {
-				log.Printf("Warning: _admins collection not found: %v", err)
+			// Not found, attempt to create
+			adminCollection, colErr := dao.FindCollectionByNameOrId("_admins")
+			if colErr != nil || adminCollection == nil {
+				log.Printf("Error: _admins collection not found: %v", colErr)
 			} else {
 				newAdmin := models.NewRecord(adminCollection)
 				newAdmin.Set("email", pbAdminEmail)
 				newAdmin.Set("password", pbAdminPassword)
 				newAdmin.Set("passwordConfirm", pbAdminPassword)
-				if err := dao.SaveRecord(newAdmin); err != nil {
-					log.Printf("Warning: could not create PocketBase superuser: %v", err)
+				if saveErr := dao.SaveRecord(newAdmin); saveErr != nil {
+					// Ignore duplicate email error (superuser already exists)
+					if strings.Contains(saveErr.Error(), "duplicate") || strings.Contains(saveErr.Error(), "UNIQUE") {
+						log.Printf("Superuser already exists (duplicate), skipping creation: %s", pbAdminEmail)
+					} else {
+						log.Printf("Warning: could not create PocketBase superuser: %v", saveErr)
+					}
 				} else {
 					log.Printf("PocketBase superuser created: %s", pbAdminEmail)
 				}
 			}
+		} else {
+			log.Printf("PocketBase superuser already exists: %s", pbAdminEmail)
 		}
-	} else {
-		log.Println("Warning: PB_ADMIN_EMAIL or PB_ADMIN_PASSWORD not set. Superuser will not be created automatically.")
 	}
 
 	// Create regular admin user if env vars set
 	adminEmail := os.Getenv("ADMIN_EMAIL")
 	adminPassword := os.Getenv("ADMIN_PASSWORD")
-	if adminEmail != "" && adminPassword != "" {
+	if adminEmail == "" || adminPassword == "" {
+		log.Println("Warning: ADMIN_EMAIL or ADMIN_PASSWORD not set. Regular admin user will not be created automatically.")
+	} else {
 		user, err := dao.FindAuthRecordByEmail("users", adminEmail)
 		if err != nil {
-			collection, err := dao.FindCollectionByNameOrId("users")
-			if err != nil || collection == nil {
-				log.Printf("Warning: users collection not found for admin creation: %v", err)
+			collection, colErr := dao.FindCollectionByNameOrId("users")
+			if colErr != nil || collection == nil {
+				log.Printf("Error: users collection not found: %v", colErr)
 			} else {
 				newUser := models.NewRecord(collection)
 				newUser.Set("email", adminEmail)
@@ -303,8 +315,12 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 				newUser.Set("password", adminPassword)
 				newUser.Set("passwordConfirm", adminPassword)
 				newUser.Set("isAdmin", true)
-				if err := dao.SaveRecord(newUser); err != nil {
-					log.Printf("Warning: could not create admin user: %v", err)
+				if saveErr := dao.SaveRecord(newUser); saveErr != nil {
+					if strings.Contains(saveErr.Error(), "duplicate") || strings.Contains(saveErr.Error(), "UNIQUE") {
+						log.Printf("Admin user already exists (duplicate), skipping creation: %s", adminEmail)
+					} else {
+						log.Printf("Warning: could not create admin user: %v", saveErr)
+					}
 				} else {
 					log.Printf("Admin user created: %s", adminEmail)
 				}
@@ -312,9 +328,13 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 		} else {
 			if user.GetBool("isAdmin") != true {
 				user.Set("isAdmin", true)
-				if err := dao.SaveRecord(user); err != nil {
-					log.Printf("Warning: could not update admin user: %v", err)
+				if updateErr := dao.SaveRecord(user); updateErr != nil {
+					log.Printf("Warning: could not update admin user: %v", updateErr)
+				} else {
+					log.Printf("Admin user updated to isAdmin=true: %s", adminEmail)
 				}
+			} else {
+				log.Printf("Admin user already exists and isAdmin=true: %s", adminEmail)
 			}
 		}
 	}
