@@ -270,10 +270,10 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 		log.Println("Warning: PB_ADMIN_EMAIL or PB_ADMIN_PASSWORD not set. Superuser will not be created automatically.")
 	} else {
 		// Try to find existing superuser
-		_, err := dao.FindAuthRecordByEmail("_admins", pbAdminEmail)
+		_, err := dao.FindAuthRecordByEmail("_superusers", pbAdminEmail)
 		if err != nil {
 			// Not found, attempt to create
-			adminCollection, colErr := dao.FindCollectionByNameOrId("_admins")
+			adminCollection, colErr := dao.FindCollectionByNameOrId("_superusers")
 			if colErr != nil || adminCollection == nil {
 				log.Printf("Error: _admins collection not found: %v", colErr)
 			} else {
@@ -303,6 +303,7 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 	if adminEmail == "" || adminPassword == "" {
 		log.Println("Warning: ADMIN_EMAIL or ADMIN_PASSWORD not set. Regular admin user will not be created automatically.")
 	} else {
+		log.Printf("Checking for existing admin user: %s", adminEmail)
 		user, err := dao.FindAuthRecordByEmail("users", adminEmail)
 		if err != nil {
 			collection, colErr := dao.FindCollectionByNameOrId("users")
