@@ -49,8 +49,9 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 
 	// 1. Add isAdmin to users
 	usersCollection, err := dao.FindCollectionByNameOrId("users")
-	if err != nil {
-		return err
+	if err != nil || usersCollection == nil {
+		log.Printf("Warning: users collection not found: %v", err)
+		return nil
 	}
 	hasIsAdmin := false
 	for _, field := range usersCollection.Schema.Fields() {
@@ -267,15 +268,19 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 	if pbAdminEmail != "" && pbAdminPassword != "" {
 		_, err := dao.FindAuthRecordByEmail("_admins", pbAdminEmail)
 		if err != nil {
-			adminCollection, _ := dao.FindCollectionByNameOrId("_admins")
-			newAdmin := models.NewRecord(adminCollection)
-			newAdmin.Set("email", pbAdminEmail)
-			newAdmin.Set("password", pbAdminPassword)
-			newAdmin.Set("passwordConfirm", pbAdminPassword)
-			if err := dao.SaveRecord(newAdmin); err != nil {
-				log.Printf("Warning: could not create PocketBase superuser: %v", err)
+			adminCollection, err := dao.FindCollectionByNameOrId("_admins")
+			if err != nil || adminCollection == nil {
+				log.Printf("Warning: _admins collection not found: %v", err)
 			} else {
-				log.Printf("PocketBase superuser created: %s", pbAdminEmail)
+				newAdmin := models.NewRecord(adminCollection)
+				newAdmin.Set("email", pbAdminEmail)
+				newAdmin.Set("password", pbAdminPassword)
+				newAdmin.Set("passwordConfirm", pbAdminPassword)
+				if err := dao.SaveRecord(newAdmin); err != nil {
+					log.Printf("Warning: could not create PocketBase superuser: %v", err)
+				} else {
+					log.Printf("PocketBase superuser created: %s", pbAdminEmail)
+				}
 			}
 		}
 	} else {
@@ -288,22 +293,28 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 	if adminEmail != "" && adminPassword != "" {
 		user, err := dao.FindAuthRecordByEmail("users", adminEmail)
 		if err != nil {
-			collection, _ := dao.FindCollectionByNameOrId("users")
-			newUser := models.NewRecord(collection)
-			newUser.Set("email", adminEmail)
-			newUser.Set("username", adminEmail)
-			newUser.Set("password", adminPassword)
-			newUser.Set("passwordConfirm", adminPassword)
-			newUser.Set("isAdmin", true)
-			if err := dao.SaveRecord(newUser); err != nil {
-				log.Printf("Warning: could not create admin user: %v", err)
+			collection, err := dao.FindCollectionByNameOrId("users")
+			if err != nil || collection == nil {
+				log.Printf("Warning: users collection not found for admin creation: %v", err)
 			} else {
-				log.Printf("Admin user created: %s", adminEmail)
+				newUser := models.NewRecord(collection)
+				newUser.Set("email", adminEmail)
+				newUser.Set("username", adminEmail)
+				newUser.Set("password", adminPassword)
+				newUser.Set("passwordConfirm", adminPassword)
+				newUser.Set("isAdmin", true)
+				if err := dao.SaveRecord(newUser); err != nil {
+					log.Printf("Warning: could not create admin user: %v", err)
+				} else {
+					log.Printf("Admin user created: %s", adminEmail)
+				}
 			}
 		} else {
 			if user.GetBool("isAdmin") != true {
 				user.Set("isAdmin", true)
-				dao.SaveRecord(user)
+				if err := dao.SaveRecord(user); err != nil {
+					log.Printf("Warning: could not update admin user: %v", err)
+				}
 			}
 		}
 	}
