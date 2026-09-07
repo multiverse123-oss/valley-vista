@@ -275,7 +275,7 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 			// Not found, attempt to create
 			adminCollection, colErr := dao.FindCollectionByNameOrId("_superusers")
 			if colErr != nil || adminCollection == nil {
-				log.Printf("Error: _admins collection not found: %v", colErr)
+				log.Printf("Error: _superusers collection not found: %v", colErr)
 			} else {
 				newAdmin := models.NewRecord(adminCollection)
 				newAdmin.Set("email", pbAdminEmail)
