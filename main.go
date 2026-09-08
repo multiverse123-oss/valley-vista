@@ -263,41 +263,28 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 		}
 	}
 
-	// Create PocketBase superuser if env vars set
+	// Create PocketBase superuser using DAO
 	pbAdminEmail := os.Getenv("PB_ADMIN_EMAIL")
 	pbAdminPassword := os.Getenv("PB_ADMIN_PASSWORD")
 	if pbAdminEmail == "" || pbAdminPassword == "" {
 		log.Println("Warning: PB_ADMIN_EMAIL or PB_ADMIN_PASSWORD not set. Superuser will not be created automatically.")
 	} else {
-		// Try to find existing superuser
-		_, err := dao.FindAuthRecordByEmail("_superusers", pbAdminEmail)
+		_, err := dao.FindAdminByEmail(pbAdminEmail)
 		if err != nil {
-			// Not found, attempt to create
-			adminCollection, colErr := dao.FindCollectionByNameOrId("_superusers")
-			if colErr != nil || adminCollection == nil {
-				log.Printf("Error: _superusers collection not found: %v", colErr)
+			newAdmin := &models.Admin{}
+			newAdmin.Email = pbAdminEmail
+			newAdmin.SetPassword(pbAdminPassword)
+			if saveErr := dao.SaveAdmin(newAdmin); saveErr != nil {
+				log.Printf("Warning: could not create PocketBase superuser: %v", saveErr)
 			} else {
-				newAdmin := models.NewRecord(adminCollection)
-				newAdmin.Set("email", pbAdminEmail)
-				newAdmin.Set("password", pbAdminPassword)
-				newAdmin.Set("passwordConfirm", pbAdminPassword)
-				if saveErr := dao.SaveRecord(newAdmin); saveErr != nil {
-					// Ignore duplicate email error (superuser already exists)
-					if strings.Contains(saveErr.Error(), "duplicate") || strings.Contains(saveErr.Error(), "UNIQUE") {
-						log.Printf("Superuser already exists (duplicate), skipping creation: %s", pbAdminEmail)
-					} else {
-						log.Printf("Warning: could not create PocketBase superuser: %v", saveErr)
-					}
-				} else {
-					log.Printf("PocketBase superuser created: %s", pbAdminEmail)
-				}
+				log.Printf("PocketBase superuser created: %s", pbAdminEmail)
 			}
 		} else {
 			log.Printf("PocketBase superuser already exists: %s", pbAdminEmail)
 		}
 	}
 
-	// Create regular admin user if env vars set
+// Create regular admin user if env vars set
 	adminEmail := os.Getenv("ADMIN_EMAIL")
 	adminPassword := os.Getenv("ADMIN_PASSWORD")
 	if adminEmail == "" || adminPassword == "" {
