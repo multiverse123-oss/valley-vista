@@ -13,7 +13,6 @@ fi
 # Start Litestream replication in background
 litestream replicate -config /app/litestream.yml > /app/litestream.log 2>&1 &
 
-# Wait briefly
 sleep 2
 
 # Start PocketBase on Render's provided port
