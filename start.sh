@@ -7,10 +7,10 @@ export GOGC=20
 # Restore database from iDrive if local DB doesn't exist or is empty
 if [ ! -s /app/pb_data/data.db ]; then
   echo "Local database missing, restoring from iDrive..."
-  litestream restore -if-db-not-exists /app/pb_data/data.db
+  litestream restore -config /app/litestream.yml -if-db-not-exists -o /app/pb_data/data.db /app/pb_data/data.db
 fi
 
-# Start Litestream replication in background (output to logs)
+# Start Litestream replication in background
 litestream replicate -config /app/litestream.yml &
 
 sleep 2
