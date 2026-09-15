@@ -12,6 +12,7 @@ Backend for ValleyVista real estate marketplace.
 ## Environment Variables
 
 - `ADMIN_EMAIL`, `ADMIN_PASSWORD` – create an admin user with isAdmin flag on first run.
+- `IDRIVE_BUCKET`, `IDRIVE_REGION`, `IDRIVE_ACCESS_KEY_ID`, `IDRIVE_SECRET_ACCESS_KEY` – Litestream backup configuration.
 - Allowed origins are set to `*` (modify in code for production).
 
 ## Collections
@@ -28,6 +29,10 @@ Backend for ValleyVista real estate marketplace.
 
 1. Create a new Web Service, connect GitHub repo.
 2. Set build command: `docker build -t valleyvista-backend .`
-3. Set start command: `./pocketbase serve --http=0.0.0.0:8080`
+3. Use the Dockerfile `CMD` or set the start command to `./start.sh`. Do not bypass `start.sh` with `./pocketbase serve`, because that skips restore and replication.
 4. Add a persistent disk mounted at `/app/pb_data` (size 1GB or more).
-5. Set environment variables: `ADMIN_EMAIL`, `ADMIN_PASSWORD`.
+5. Set `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `IDRIVE_BUCKET`, `IDRIVE_REGION`, `IDRIVE_ACCESS_KEY_ID`, and `IDRIVE_SECRET_ACCESS_KEY`.
+
+`start.sh` attempts restore on every boot, starts Litestream with verbose logs,
+and restarts replication if the process exits. The Render logs include the
+database size before/after restore and the Litestream process ID.

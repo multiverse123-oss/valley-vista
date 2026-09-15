@@ -1,10 +1,11 @@
 package main
 
 import (
-	"strings"
 	"log"
 	"net/http"
 	"os"
+	"strings"
+	"unicode"
 
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
@@ -284,7 +285,7 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 		}
 	}
 
-// Create regular admin user if env vars set
+	// Create regular admin user if env vars set
 	adminEmail := os.Getenv("ADMIN_EMAIL")
 	adminPassword := os.Getenv("ADMIN_PASSWORD")
 	if adminEmail == "" || adminPassword == "" {
@@ -299,10 +300,11 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 			} else {
 				newUser := models.NewRecord(collection)
 				newUser.Set("email", adminEmail)
-				newUser.Set("username", adminEmail)
+				newUser.Set("username", usernameFromEmail(adminEmail))
 				newUser.Set("password", adminPassword)
 				newUser.Set("passwordConfirm", adminPassword)
 				newUser.Set("isAdmin", true)
+				newUser.Set("verified", true)
 				if saveErr := dao.SaveRecord(newUser); saveErr != nil {
 					if strings.Contains(saveErr.Error(), "duplicate") || strings.Contains(saveErr.Error(), "UNIQUE") {
 						log.Printf("Admin user already exists (duplicate), skipping creation: %s", adminEmail)
@@ -314,18 +316,47 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 				}
 			}
 		} else {
-			if user.GetBool("isAdmin") != true {
+			desiredUsername := usernameFromEmail(adminEmail)
+			if user.GetBool("isAdmin") != true ||
+				user.GetString("username") != desiredUsername ||
+				user.GetBool("verified") != true {
+				user.Set("username", desiredUsername)
 				user.Set("isAdmin", true)
+				user.Set("verified", true)
 				if updateErr := dao.SaveRecord(user); updateErr != nil {
-					log.Printf("Warning: could not update admin user: %v", updateErr)
+					log.Printf("Warning: could not repair admin user: %v", updateErr)
 				} else {
-					log.Printf("Admin user updated to isAdmin=true: %s", adminEmail)
+					log.Printf("Admin user repaired and verified: %s", adminEmail)
 				}
 			} else {
-				log.Printf("Admin user already exists and isAdmin=true: %s", adminEmail)
+				log.Printf("Admin user already exists, isAdmin=true, and is verified: %s", adminEmail)
 			}
 		}
 	}
 
 	return nil
+}
+
+// PocketBase usernames accept letters, numbers, underscores, and hyphens,
+// but an email address is not a valid username. Keep email as the login
+// identity while deriving a stable, valid username for auth records.
+func usernameFromEmail(email string) string {
+	localPart := strings.SplitN(email, "@", 2)[0]
+	var b strings.Builder
+	for _, r := range localPart {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '-' {
+			b.WriteRune(r)
+		}
+	}
+
+	username := b.String()
+	if username == "" {
+		return "user"
+	}
+
+	first := []rune(username)[0]
+	if !unicode.IsLetter(first) && !unicode.IsDigit(first) {
+		return "user_" + username
+	}
+	return username
 }
