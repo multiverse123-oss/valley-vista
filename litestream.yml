@@ -3,9 +3,9 @@ dbs:
     replicas:
       - type: s3
         endpoint: https://s3.us-west-4.idrivee2.com
-        bucket: ${IDRIVE_BUCKET}
+        bucket: vally-vista
         path: pocketbase-data
-        access-key-id: ${IDRIVE_ACCESS_KEY_ID}
-        secret-access-key: ${IDRIVE_SECRET_ACCESS_KEY}
-        region: ${IDRIVE_REGION}
+        access-key-id: H0R0RKxcI4ZdXXeNLLT4
+        secret-access-key: zCQDSdzIzYPJdRBLFxWuevajngnjs0qU0b0TAAby
+        region: us-west-4
         force-path-style: true
