@@ -10,7 +10,7 @@ if [ ! -s /app/pb_data/data.db ]; then
   litestream restore -config /app/litestream.yml -if-db-not-exists -o /app/pb_data/data.db /app/pb_data/data.db || true
 fi
 
-# Supervisor loop keeps Litestream running — NO -v flag
+# Supervisor loop — Litestream can never stay dead
 (
   while true; do
     echo "[supervisor] Starting Litestream replicate..."
