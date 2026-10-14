@@ -37,7 +37,6 @@ func main() {
 		}
 		if err := applyS3FromEnv(app); err != nil {
 			log.Printf("Error applying S3 settings from env: %v", err)
-			// Do not fail startup — we still want PocketBase to run
 		}
 		return nil
 	})
@@ -48,8 +47,6 @@ func main() {
 }
 
 // applyS3FromEnv re-applies S3 file storage settings on every boot.
-// This survives Litestream rollbacks because the config lives in Render env vars,
-// not in the database.
 func applyS3FromEnv(app *pocketbase.PocketBase) error {
 	if os.Getenv("VV_S3_ENABLED") != "true" {
 		log.Println("[startup] VV_S3_ENABLED not set to true — skipping S3 config")
@@ -114,6 +111,9 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 		}
 	}
 
+	// Pre-fetch users collection once — used by multiple relation fields below
+	usersColl, _ := dao.FindCollectionByNameOrId("users")
+
 	// 2. properties
 	if _, err := dao.FindCollectionByNameOrId("properties"); err != nil {
 		collection := &models.Collection{
@@ -161,11 +161,37 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 		propCol, _ := dao.FindCollectionByNameOrId("properties")
 		if propCol != nil {
 			added := false
-			for _, name := range []string{"formatted_address", "place_id", "geocoded_at", "geocoding_status", "location_accuracy", "map_zoom", "location_notes", "nearest_landmark"} {
-				if !hasField(propCol, name) {
-					propCol.Schema.AddField(&schema.SchemaField{Name: name, Type: schema.FieldTypeText, Required: false})
-					added = true
-				}
+			if !hasField(propCol, "formatted_address") {
+				propCol.Schema.AddField(&schema.SchemaField{Name: "formatted_address", Type: schema.FieldTypeText, Required: false})
+				added = true
+			}
+			if !hasField(propCol, "place_id") {
+				propCol.Schema.AddField(&schema.SchemaField{Name: "place_id", Type: schema.FieldTypeText, Required: false})
+				added = true
+			}
+			if !hasField(propCol, "geocoded_at") {
+				propCol.Schema.AddField(&schema.SchemaField{Name: "geocoded_at", Type: schema.FieldTypeDate, Required: false})
+				added = true
+			}
+			if !hasField(propCol, "geocoding_status") {
+				propCol.Schema.AddField(&schema.SchemaField{Name: "geocoding_status", Type: schema.FieldTypeSelect, Required: false, Options: &schema.SelectOptions{MaxSelect: 1, Values: []string{"pending", "success", "failed", "manual"}}})
+				added = true
+			}
+			if !hasField(propCol, "location_accuracy") {
+				propCol.Schema.AddField(&schema.SchemaField{Name: "location_accuracy", Type: schema.FieldTypeSelect, Required: false, Options: &schema.SelectOptions{MaxSelect: 1, Values: []string{"exact", "street", "area", "city", "approximate"}}})
+				added = true
+			}
+			if !hasField(propCol, "map_zoom") {
+				propCol.Schema.AddField(&schema.SchemaField{Name: "map_zoom", Type: schema.FieldTypeNumber, Required: false})
+				added = true
+			}
+			if !hasField(propCol, "location_notes") {
+				propCol.Schema.AddField(&schema.SchemaField{Name: "location_notes", Type: schema.FieldTypeText, Required: false})
+				added = true
+			}
+			if !hasField(propCol, "nearest_landmark") {
+				propCol.Schema.AddField(&schema.SchemaField{Name: "nearest_landmark", Type: schema.FieldTypeText, Required: false})
+				added = true
 			}
 			if !hasField(propCol, "satellite_override") {
 				propCol.Schema.AddField(&schema.SchemaField{Name: "satellite_override", Type: schema.FieldTypeFile, Required: false, Options: &schema.FileOptions{MaxSelect: 1, MaxSize: 10485760, MimeTypes: []string{"image/jpeg", "image/png", "image/webp"}}})
@@ -237,7 +263,6 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 		for _, f := range fields {
 			collection.Schema.AddField(f)
 		}
-		usersColl, _ := dao.FindCollectionByNameOrId("users")
 		if usersColl != nil {
 			for _, f := range collection.Schema.Fields() {
 				if f.Name == "user" {
@@ -305,7 +330,6 @@ func ensureCollections(app *pocketbase.PocketBase) error {
 			return err
 		}
 	} else {
-		// Ensure category field exists
 		profCol, _ := dao.FindCollectionByNameOrId("professionals")
 		if profCol != nil && !hasField(profCol, "category") {
 			profCol.Schema.AddField(&schema.SchemaField{
